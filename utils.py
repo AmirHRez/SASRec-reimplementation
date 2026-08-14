@@ -1,10 +1,11 @@
-import sys
 import copy
-import torch
 import random
-import numpy as np
+import sys
 from collections import defaultdict
 from multiprocessing import Process, Queue
+
+import numpy as np
+from tqdm import tqdm
 
 
 def build_index(dataset_name):
@@ -148,7 +149,7 @@ def evaluate(model, dataset, args):
         users = random.sample(range(1, usernum + 1), 10000)
     else:
         users = range(1, usernum + 1)
-    for u in users:
+    for u in tqdm(users, desc="evaluating (test)", leave=False):
         if len(train[u]) < 1 or len(test[u]) < 1:
             continue
 
@@ -171,7 +172,7 @@ def evaluate(model, dataset, args):
             item_idx.append(t)
 
         predictions = -model.predict(*[np.array(l) for l in [[u], [seq], item_idx]])
-        predictions = predictions[0]  # - for 1st argsort DESC
+        predictions = predictions[0]
 
         rank = predictions.argsort().argsort()[0].item()
 
@@ -180,9 +181,9 @@ def evaluate(model, dataset, args):
         if rank < 10:
             NDCG += 1 / np.log2(rank + 2)
             HT += 1
-        if valid_user % 100 == 0:
-            print(".", end="")
-            sys.stdout.flush()
+        # if valid_user % 100 == 0:
+        #     print(".", end="")
+        #     sys.stdout.flush()
 
     return NDCG / valid_user, HT / valid_user
 
@@ -193,11 +194,12 @@ def evaluate_valid(model, dataset, args):
     NDCG = 0.0
     valid_user = 0.0
     HT = 0.0
+
     if usernum > 10000:
         users = random.sample(range(1, usernum + 1), 10000)
     else:
         users = range(1, usernum + 1)
-    for u in users:
+    for u in tqdm(users, desc="evaluating (valid)", leave=False):
         if len(train[u]) < 1 or len(valid[u]) < 1:
             continue
 
@@ -228,8 +230,8 @@ def evaluate_valid(model, dataset, args):
         if rank < 10:
             NDCG += 1 / np.log2(rank + 2)
             HT += 1
-        if valid_user % 100 == 0:
-            print(".", end="")
-            sys.stdout.flush()
+        # if valid_user % 100 == 0:
+        #     print(".", end="")
+        #     sys.stdout.flush()
 
     return NDCG / valid_user, HT / valid_user

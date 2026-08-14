@@ -1,11 +1,13 @@
 import os
 import time
+from dataclasses import asdict, dataclass
+from typing import Optional
+
 import torch
+from tqdm import tqdm
+
 from model import SASRec
 from utils import *
-from dataclasses import dataclass, asdict
-from typing import Optional
-from tqdm import tqdm
 
 
 @dataclass
