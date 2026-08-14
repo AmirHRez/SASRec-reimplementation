@@ -103,7 +103,6 @@ class WarpSampler(object):
             p.join()
 
 
-# train/val/test data generation
 def data_partition(fname):
     usernum = 0
     itemnum = 0
@@ -111,7 +110,7 @@ def data_partition(fname):
     user_train = {}
     user_valid = {}
     user_test = {}
-    # assume user/item index starting from 1
+    # assuming user/item index starts from 1
     with open(f"data/{fname}.txt", "r") as f:
         for line in f:
             u, i = line.rstrip().split(" ")
@@ -124,9 +123,7 @@ def data_partition(fname):
 
     for user in User:
         nfeedback = len(User[user])
-        if (
-            nfeedback < 4
-        ):  # To be rigorous, the training set needs at least two data points to learn
+        if nfeedback < 4:
             user_train[user] = User[user]
             user_valid[user] = []
             user_test[user] = []
@@ -140,7 +137,6 @@ def data_partition(fname):
 
 
 # TODO: merge evaluate functions for test and val set
-# evaluate on test set
 def evaluate(model, dataset, args):
     [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
 
@@ -191,7 +187,6 @@ def evaluate(model, dataset, args):
     return NDCG / valid_user, HT / valid_user
 
 
-# evaluate on val set
 def evaluate_valid(model, dataset, args):
     [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
 

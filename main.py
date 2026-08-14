@@ -5,6 +5,7 @@ from model import SASRec
 from utils import *
 from dataclasses import dataclass, asdict
 from typing import Optional
+from tqdm import tqdm
 
 
 @dataclass
@@ -66,23 +67,18 @@ if __name__ == "__main__":
         maxlen=args.maxlen,
         n_workers=3,
     )
-    model = SASRec(usernum, itemnum, args).to(
-        args.device
-    )  # no ReLU activation in original SASRec implementation?
+    model = SASRec(usernum, itemnum, args).to(args.device)
 
     for name, param in model.named_parameters():
         try:
             torch.nn.init.xavier_normal_(param.data)
         except:
-            pass  # just ignore those failed init layers
+            pass  # ignore
 
     model.pos_emb.weight.data[0, :] = 0
     model.item_emb.weight.data[0, :] = 0
 
-    # this fails embedding init 'Embedding' object has no attribute 'dim'
-    # model.apply(torch.nn.init.xavier_uniform_)
-
-    model.train()  # enable model training
+    model.train()
 
     epoch_start_idx = 1
     if args.state_dict_path is not None:
@@ -92,7 +88,7 @@ if __name__ == "__main__":
             )
             tail = args.state_dict_path[args.state_dict_path.find("epoch=") + 6 :]
             epoch_start_idx = int(tail[: tail.find(".")]) + 1
-        except:  # in case your pytorch version is not 1.6 etc., pls debug by pdb if load weights failed
+        except:
             print("failed loading state_dicts, pls check file path: ", end="")
             print(args.state_dict_path)
             print(
@@ -107,8 +103,6 @@ if __name__ == "__main__":
         t_test = evaluate(model, dataset, args)
         print(f"test (NDCG@10: {t_test[0]}, HR@10: {t_test[1]})")
 
-    # ce_criterion = torch.nn.CrossEntropyLoss()
-    # https://github.com/NVIDIA/pix2pixHD/issues/9 how could an old bug appear again...
     bce_criterion = torch.nn.BCEWithLogitsLoss()
     adam_optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98))
 
@@ -116,12 +110,11 @@ if __name__ == "__main__":
     best_test_ndcg, best_test_hr = 0.0, 0.0
     T = 0.0
     t0 = time.time()
-    for epoch in range(epoch_start_idx, args.num_epochs + 1):
+    for epoch in tqdm(range(epoch_start_idx, args.num_epochs + 1), desc="epochs"):
         if args.inference_only:
-            break  # just to decrease identition
-        for step in range(
-            num_batch
-        ):  # tqdm(range(num_batch), total=num_batch, ncols=70, leave=False, unit='b'):
+            break  # decrease identition
+        epoch_loss = 0.0
+        for step in tqdm(range(num_batch), desc=f"epoch {epoch}", leave=False):
             u, seq, pos, neg = sampler.next_batch()  # tuples to ndarray
             u, seq, pos, neg = np.array(u), np.array(seq), np.array(pos), np.array(neg)
             pos_logits, neg_logits = model(u, seq, pos, neg)
@@ -129,7 +122,6 @@ if __name__ == "__main__":
                 torch.ones(pos_logits.shape, device=args.device),
                 torch.zeros(neg_logits.shape, device=args.device),
             )
-            # print("\neye ball check raw_logits:"); print(pos_logits); print(neg_logits) # check pos_logits > 0, neg_logits < 0
             adam_optimizer.zero_grad()
             indices = np.where(pos != 0)
             loss = bce_criterion(pos_logits[indices], pos_labels[indices])
@@ -140,16 +132,18 @@ if __name__ == "__main__":
                 loss += args.l2_emb * torch.sum(param**2)
             loss.backward()
             adam_optimizer.step()
-            print(f"loss in epoch {epoch} iteration {step}: {loss.item()}")
+            epoch_loss += loss.item()
+            # tqdm.write(f"loss in epoch {epoch} iteration {step}: {loss.item()}")
+        tqdm.write(f"epoch {epoch}: avg loss {epoch_loss / num_batch:.4f}")
 
         if epoch % 20 == 0:
             model.eval()
             t1 = time.time() - t0
             T += t1
-            print("Evaluating", end="")
+            tqdm.write("Evaluating", end="")
             t_test = evaluate(model, dataset, args)
             t_valid = evaluate_valid(model, dataset, args)
-            print(
+            tqdm.write(
                 f"epoch:{epoch}, time: {T}(s), valid (NDCG@10: {t_valid[0]}, HR@10: {t_valid[1]}), "
                 f"test (NDCG@10:{t_test[0]}, HR@10: {t_test[1]})"
             )
