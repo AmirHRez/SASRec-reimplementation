@@ -29,14 +29,29 @@ class Config:
     norm_first: bool = False
 
 
+def save_checkpoint(path, model, optimizer, epoch, args):
+    tmp_path = path + ".tmp"
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "args": asdict(args),
+        },
+        tmp_path,
+    )
+    os.replace(tmp_path, path)
+
+
 def str2bool(s):
     if s not in {"false", "true"}:
         raise ValueError("Not a valid boolean string")
     return s == "true"
 
 
-# MovieLens 1M dataset (2003)
 args = Config(dataset="ml-1m", train_dir="default")
+# remove `state_dict_path` when starting new
+args.state_dict_path = "ml-1m_default/latest.pth"
 if not os.path.isdir(args.dataset + "_" + args.train_dir):
     os.makedirs(args.dataset + "_" + args.train_dir)
 
@@ -82,23 +97,19 @@ if __name__ == "__main__":
 
     model.train()
 
+    adam_optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98))
+
     epoch_start_idx = 1
     if args.state_dict_path is not None:
         try:
-            model.load_state_dict(
-                torch.load(args.state_dict_path, map_location=torch.device(args.device))
+            ckpt = torch.load(
+                args.state_dict_path, map_location=torch.device(args.device)
             )
-            tail = args.state_dict_path[args.state_dict_path.find("epoch=") + 6 :]
-            epoch_start_idx = int(tail[: tail.find(".")]) + 1
+            model.load_state_dict(ckpt["model_state_dict"])
+            adam_optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+            epoch_start_idx = ckpt["epoch"] + 1
         except:
-            print("failed loading state_dicts, pls check file path: ", end="")
-            print(args.state_dict_path)
-            print(
-                "pdb enabled for your quick check, pls type exit() if you do not need it"
-            )
-            import pdb
-
-            pdb.set_trace()
+            print(f"No checkpoint file at {args.state_dict_path}")
 
     if args.inference_only:
         model.eval()
@@ -106,15 +117,17 @@ if __name__ == "__main__":
         print(f"test (NDCG@10: {t_test[0]}, HR@10: {t_test[1]})")
 
     bce_criterion = torch.nn.BCEWithLogitsLoss()
-    adam_optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98))
 
     best_val_ndcg, best_val_hr = 0.0, 0.0
     best_test_ndcg, best_test_hr = 0.0, 0.0
     T = 0.0
     t0 = time.time()
+    folder = args.dataset + "_" + args.train_dir
+
     for epoch in tqdm(range(epoch_start_idx, args.num_epochs + 1), desc="epochs"):
         if args.inference_only:
             break  # decrease identition
+
         epoch_loss = 0.0
         for step in tqdm(range(num_batch), desc=f"epoch {epoch}", leave=False):
             u, seq, pos, neg = sampler.next_batch()  # tuples to ndarray
@@ -126,16 +139,17 @@ if __name__ == "__main__":
             )
             adam_optimizer.zero_grad()
             indices = np.where(pos != 0)
+
             loss = bce_criterion(pos_logits[indices], pos_labels[indices])
             loss += bce_criterion(neg_logits[indices], neg_labels[indices])
-            # torch.norm(param) returns the square root of the sum of squared weights (‖w‖₂),
-            # should be torch.norm(param)**2 or the way below which is faster.
+
             for param in model.item_emb.parameters():
                 loss += args.l2_emb * torch.sum(param**2)
+
             loss.backward()
             adam_optimizer.step()
             epoch_loss += loss.item()
-            # tqdm.write(f"loss in epoch {epoch} iteration {step}: {loss.item()}")
+
         tqdm.write(f"epoch {epoch}: avg loss {epoch_loss / num_batch:.4f}")
 
         if epoch % 20 == 0:
@@ -160,7 +174,6 @@ if __name__ == "__main__":
                 best_val_hr = max(t_valid[1], best_val_hr)
                 best_test_ndcg = max(t_test[0], best_test_ndcg)
                 best_test_hr = max(t_test[1], best_test_hr)
-                folder = args.dataset + "_" + args.train_dir
                 fname = f"SASRec.epoch={epoch}.lr={args.lr}.layer={args.num_blocks}.head={args.num_heads}.hidden={args.hidden_units}.maxlen={args.maxlen}.pth"
                 torch.save(model.state_dict(), os.path.join(folder, fname))
 
@@ -170,9 +183,14 @@ if __name__ == "__main__":
             model.train()
 
         if epoch == args.num_epochs:
-            folder = args.dataset + "_" + args.train_dir
             fname = f"SASRec.epoch={args.num_epochs}.lr={args.lr}.layer={args.num_blocks}.head={args.num_heads}.hidden={args.hidden_units}.maxlen={args.maxlen}.pth"
             torch.save(model.state_dict(), os.path.join(folder, fname))
+
+        # save checkpoint every 5 epoch
+        if epoch % 5 == 0:
+            save_checkpoint(
+                os.path.join(folder, "latest.pth"), model, adam_optimizer, epoch, args
+            )
 
     f.close()
     sampler.close()

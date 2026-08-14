@@ -1,6 +1,5 @@
 import copy
 import random
-import sys
 from collections import defaultdict
 from multiprocessing import Process, Queue
 
@@ -137,7 +136,6 @@ def data_partition(fname):
     return [user_train, user_valid, user_test, usernum, itemnum]
 
 
-# TODO: merge evaluate functions for test and val set
 def evaluate(model, dataset, args):
     [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
 
