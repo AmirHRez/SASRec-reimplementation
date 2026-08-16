@@ -1,7 +1,6 @@
 import os
 import time
 from dataclasses import asdict, dataclass
-from typing import Optional
 
 import torch
 from tqdm import tqdm
@@ -25,7 +24,7 @@ class Config:
     l2_emb: float = 0.0
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     inference_only: bool = False
-    state_dict_path: Optional[str] = None
+    state_dict_path: str | None = None
     norm_first: bool = False
 
 
