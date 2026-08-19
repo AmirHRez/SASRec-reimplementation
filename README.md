@@ -6,6 +6,10 @@ You can access the model from [MongrelIntruder/sasrec-pytorch](https://huggingfa
 
 The dataset used for the training is [movielens](https://grouplens.org/datasets/movielens/) 1m entries (2003)
 
+Best validation/test scores seen during training:
+- valid: NDCG@10 0.6279, HR@10 0.8490
+- test:  NDCG@10 0.5966, HR@10 0.8267
+
 ## How to run
 
 Simply install the dependencies and run `main.py`
