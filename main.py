@@ -113,7 +113,12 @@ if __name__ == "__main__":
     if args.inference_only:
         model.eval()
         t_test = evaluate(model, dataset, args)
-        print(f"test (NDCG@10: {t_test[0]}, HR@10: {t_test[1]})")
+
+        print(
+            f"test (NDCG@10: {t_test['ndcg']:.4f}, HR@10: {t_test['hr']:.4f}, "
+            f"Precision@10: {t_test['precision']:.4f}, Recall@10: {t_test['recall']:.4f}, "
+            f"MRR: {t_test['mrr']:.4f})"
+        )
 
     bce_criterion = torch.nn.BCEWithLogitsLoss()
 
@@ -159,20 +164,21 @@ if __name__ == "__main__":
             t_test = evaluate(model, dataset, args)
             t_valid = evaluate_valid(model, dataset, args)
             tqdm.write(
-                f"epoch:{epoch}, time: {T}(s), valid (NDCG@10: {t_valid[0]}, HR@10: {t_valid[1]}), "
-                f"test (NDCG@10:{t_test[0]}, HR@10: {t_test[1]})"
+                f"epoch:{epoch}, time: {T}(s), valid (NDCG@10: {t_valid['ndcg']:.4f}, HR@10: {t_valid['hr']:.4f}), "
+                f"test (NDCG@10:{t_test['ndcg']:.4f}, HR@10: {t_test['hr']:.4f})"
             )
 
             if (
-                t_valid[0] > best_val_ndcg
-                or t_valid[1] > best_val_hr
-                or t_test[0] > best_test_ndcg
-                or t_test[1] > best_test_hr
+                t_valid["ndcg"] > best_val_ndcg
+                or t_valid["hr"] > best_val_hr
+                or t_test["ndcg"] > best_test_ndcg
+                or t_test["hr"] > best_test_hr
             ):
-                best_val_ndcg = max(t_valid[0], best_val_ndcg)
-                best_val_hr = max(t_valid[1], best_val_hr)
-                best_test_ndcg = max(t_test[0], best_test_ndcg)
-                best_test_hr = max(t_test[1], best_test_hr)
+                best_val_ndcg = max(t_valid["ndcg"], best_val_ndcg)
+                best_val_hr = max(t_valid["hr"], best_val_hr)
+                best_test_ndcg = max(t_test["ndcg"], best_test_ndcg)
+                best_test_hr = max(t_test["hr"], best_test_hr)
+
                 fname = f"SASRec.epoch={epoch}.lr={args.lr}.layer={args.num_blocks}.head={args.num_heads}.hidden={args.hidden_units}.maxlen={args.maxlen}.pth"
                 torch.save(model.state_dict(), os.path.join(folder, fname))
 

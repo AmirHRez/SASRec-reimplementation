@@ -136,11 +136,12 @@ def data_partition(fname):
     return [user_train, user_valid, user_test, usernum, itemnum]
 
 
-def evaluate(model, dataset, args):
+def evaluate(model, dataset, args, k=10):
     [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
 
     NDCG = 0.0
     HT = 0.0
+    MRR = 0.0
     valid_user = 0.0
 
     if usernum > 10000:
@@ -176,22 +177,28 @@ def evaluate(model, dataset, args):
 
         valid_user += 1
 
-        if rank < 10:
+        MRR += 1 / (rank + 1)
+
+        if rank < k:
             NDCG += 1 / np.log2(rank + 2)
             HT += 1
-        # if valid_user % 100 == 0:
-        #     print(".", end="")
-        #     sys.stdout.flush()
 
-    return NDCG / valid_user, HT / valid_user
+    return {
+        "ndcg": NDCG / valid_user,
+        "hr": HT / valid_user,
+        "precision": (HT / k) / valid_user,
+        "recall": HT / valid_user,
+        "mrr": MRR / valid_user,
+    }
 
 
-def evaluate_valid(model, dataset, args):
+def evaluate_valid(model, dataset, args, k=10):
     [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
 
     NDCG = 0.0
     valid_user = 0.0
     HT = 0.0
+    MRR = 0.0
 
     if usernum > 10000:
         users = random.sample(range(1, usernum + 1), 10000)
@@ -224,12 +231,16 @@ def evaluate_valid(model, dataset, args):
         rank = predictions.argsort().argsort()[0].item()
 
         valid_user += 1
+        MRR += 1 / (rank + 1)
 
-        if rank < 10:
+        if rank < k:
             NDCG += 1 / np.log2(rank + 2)
             HT += 1
-        # if valid_user % 100 == 0:
-        #     print(".", end="")
-        #     sys.stdout.flush()
 
-    return NDCG / valid_user, HT / valid_user
+    return {
+        "ndcg": NDCG / valid_user,
+        "hr": HT / valid_user,
+        "precision": (HT / k) / valid_user,
+        "recall": HT / valid_user,
+        "mrr": MRR / valid_user,
+    }
